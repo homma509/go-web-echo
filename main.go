@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"reflect"
 	"strings"
+	"time"
 
 	"github.com/go-playground/locales/ja_JP"
 	ut "github.com/go-playground/universal-translator"
@@ -45,12 +46,14 @@ type Error struct {
 
 // Comment is a struct to hold unit of request
 type Comment struct {
-	ID   int64  `json:"id"`
-	Name string `json:"name" form:"name"`
-	Text string `json:"text" form:"text" validate:"required,max=20"`
+	ID      int64     `json:"id" db:"id,primarykey,autoincrement"`
+	Name    string    `json:"name" form:"name" db:"name,notnull,default:'名無し',size:200"`
+	Text    string    `json:"text" form:"text" validate:"required,max=20" db:"text,notnull,size:399"`
+	Created time.Time `json:"created" db:"created,notnull"`
+	Updated time.Time `json:"updated" db:"updated,notnull"`
 }
 
-func main() {
+func setupEcho() *echo.Echo {
 	e := echo.New()
 
 	japanese := ja_JP.New()
@@ -61,6 +64,7 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+
 	validate.RegisterTagNameFunc(func(fld reflect.StructField) string {
 		name := strings.SplitN(fld.Tag.Get("json"), ",", 2)[0]
 		switch name {
@@ -74,15 +78,12 @@ func main() {
 		return name
 	})
 	e.Validator = &Validator{validator: validate, trans: trans}
+	return e
+}
 
-	// e.GET("/", func(c echo.Context) error {
-	// 	name := c.QueryParam("name")
-	// 	return c.String(http.StatusOK, "Hello " + name)
-	// })
-	// e.GET("/:name", func(c echo.Context) error {
-	// 	name := c.Param("name")
-	// 	return c.String(http.StatusOK, "Hello " + name)
-	// })
+func main() {
+	e := setupEcho()
+
 	e.POST("api/comments", func(c echo.Context) error {
 		var comment Comment
 		if err := c.Bind(&comment); err != nil {
