@@ -12,6 +12,7 @@ import (
 	ut "github.com/go-playground/universal-translator"
 	"gopkg.in/go-playground/validator.v9"
 	ja "gopkg.in/go-playground/validator.v9/translations/ja"
+	"gopkg.in/gorp.v2"
 
 	"github.com/labstack/echo"
 )
@@ -53,6 +54,10 @@ type Comment struct {
 	Updated time.Time `json:"updated" db:"updated,notnull"`
 }
 
+func setupDB() {
+
+}
+
 func setupEcho() *echo.Echo {
 	e := echo.New()
 
@@ -81,20 +86,32 @@ func setupEcho() *echo.Echo {
 	return e
 }
 
+type Controller struct {
+	dbmap *gorp.DbMap
+}
+
+func (controller *Controller) InsertComment(c echo.Context) error {
+	var comment Comment
+	if err := c.Bind(&comment); err != nil {
+		c.Logger().Error("Bind: ", err)
+		return c.String(http.StatusBadRequest, "Bind: "+err.Error())
+	}
+	if err := c.Validate(&comment); err != nil {
+		c.Logger().Error("Validate: ", err)
+		return c.JSON(http.StatusBadRequest, &Error{Error: err.Error()})
+	}
+	return c.JSON(http.StatusCreated, "OK!")
+}
+
 func main() {
+	dbmap, err := setupDB()
+	if err != nil {
+		log.Fatal(err)
+	}
+	controller := &Controller{dbmap: dbmap}
+
 	e := setupEcho()
 
-	e.POST("api/comments", func(c echo.Context) error {
-		var comment Comment
-		if err := c.Bind(&comment); err != nil {
-			c.Logger().Error("Bind: ", err)
-			return c.String(http.StatusBadRequest, "Bind: "+err.Error())
-		}
-		if err := c.Validate(&comment); err != nil {
-			c.Logger().Error("Validate: ", err)
-			return c.JSON(http.StatusBadRequest, &Error{Error: err.Error()})
-		}
-		return c.JSON(http.StatusCreated, "OK!")
-	})
+	e.POST("api/comments", controller.InsertComment)
 	e.Logger.Fatal(e.Start(":8080"))
 }
